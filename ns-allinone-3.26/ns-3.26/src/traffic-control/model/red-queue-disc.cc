@@ -125,7 +125,7 @@ TypeId RedQueueDisc::GetTypeId (void)
                    MakeDoubleChecker<double> ())
     .AddAttribute ("QueueLimit",
                    "Queue limit in bytes/packets",
-                   UintegerValue (25),
+                   UintegerValue (40),
                    MakeUintegerAccessor (&RedQueueDisc::SetQueueLimit),
                    MakeUintegerChecker<uint32_t> ())
     .AddAttribute ("QW",
@@ -202,7 +202,7 @@ RedQueueDisc::RedQueueDisc () :
   QueueDisc ()
 {
   NS_LOG_FUNCTION (this);
-  m_uv = CreateObject<UniformRandomVariable> ();
+  m_uv = CreateObject<WeibullRandomVariable> ();
 }
 
 RedQueueDisc::~RedQueueDisc ()
@@ -284,6 +284,7 @@ RedQueueDisc::SetTh (double minTh, double maxTh)
   NS_ASSERT (minTh <= maxTh);
   m_minTh = minTh;
   m_maxTh = maxTh;
+  std::cout << "RedMinth : " << m_minTh << " RedMaxTh : " << m_maxTh << std::endl;
 }
 
 RedQueueDisc::Stats
@@ -340,7 +341,17 @@ RedQueueDisc::DoEnqueue (Ptr<QueueDiscItem> item)
       m_idle = 0;
     }
 
+  qTimeRed aql;
+  aql.time = Simulator :: Now();
+  aql.qlen = m_qAvg;
+  aql.minTh = m_minTh;
+  aql.maxTh = m_maxTh;
+  m_stats.avgQLen.push_back(aql);
+
   m_qAvg = Estimator (nQueued, m + 1, m_qAvg, m_qW);
+
+  aql.qlen = m_qAvg;
+  m_stats.curQLen.push_back(aql);
 
   NS_LOG_DEBUG ("\t bytesInQueue  " << GetInternalQueue (0)->GetNBytes () << "\tQavg " << m_qAvg);
   NS_LOG_DEBUG ("\t packetsInQueue  " << GetInternalQueue (0)->GetNPackets () << "\tQavg " << m_qAvg);
@@ -436,16 +447,21 @@ RedQueueDisc::InitializeParams (void)
   m_cautious = 0;
   m_ptc = m_linkBandwidth.GetBitRate () / (8.0 * m_meanPktSize);
 
-  if (m_isARED)
+  std::cout << "InitParams :: RedMinth : " << m_minTh << " RedMaxTh : " << m_maxTh << " m_isARED :  "<< m_isARED <<std::endl;
+
+  if (m_isARED && m_minTh == 5 && m_maxTh == 15) //Added by Santosh
     {
       // Set m_minTh, m_maxTh and m_qW to zero for automatic setting
-      m_minTh = 0;
+      m_minTh = 0; 
       m_maxTh = 0;
       m_qW = 0;
 
       // Turn on m_isAdaptMaxP to adapt m_curMaxP
       m_isAdaptMaxP = true;
     }
+
+  if(m_isARED)
+        m_isAdaptMaxP = true;
 
   if (m_minTh == 0 && m_maxTh == 0)
     {
@@ -471,6 +487,8 @@ RedQueueDisc::InitializeParams (void)
   m_stats.forcedDrop = 0;
   m_stats.unforcedDrop = 0;
   m_stats.qLimDrop = 0;
+  m_stats.avgQLen.clear();
+  m_stats.curQLen.clear();
 
   m_qAvg = 0.0;
   m_count = 0;
@@ -553,6 +571,16 @@ void
 RedQueueDisc::UpdateMaxP (double newAve, Time now)
 {
   double m_part = 0.4 * (m_maxTh - m_minTh);
+
+   qTimeRed aql;
+   aql.time = Simulator :: Now();
+   aql.qlen = m_minTh+m_part;
+   aql.minTh = m_minTh;
+   aql.maxTh = m_maxTh;
+   m_stats.avgQLen.push_back(aql);
+   aql.qlen = newAve;
+   m_stats.curQLen.push_back(aql);
+
   // AIMD rule to keep target Q~1/2(m_minTh + m_maxTh)
   if (newAve < m_minTh + m_part && m_curMaxP > m_bottom)
     {
