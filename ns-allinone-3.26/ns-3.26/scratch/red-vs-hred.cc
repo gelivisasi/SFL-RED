@@ -46,6 +46,13 @@ std::string GetRandomVariableString(int scale, int shape)
         return sstm.str();
 }
 
+std::string DoubleToString(double d)
+{
+        std::ostringstream strs;
+        strs << d;
+        return strs.str();
+}
+
 int main (int argc, char *argv[])
 {
   uint32_t    nLeaf = 10;
@@ -60,6 +67,8 @@ int main (int argc, char *argv[])
   uint16_t port = 5001;
   std::string bottleNeckLinkBw = "1Mbps";
   std::string bottleNeckLinkDelay = "50ms";
+  int scale = 1;
+  int shape = 2;
 
   CommandLine cmd;
   cmd.AddValue ("nLeaf",     "Number of left and right side leaf nodes", nLeaf);
@@ -69,9 +78,9 @@ int main (int argc, char *argv[])
   cmd.AddValue ("appPktSize", "Set OnOff App Packet Size", pktSize);
   cmd.AddValue ("appDataRate", "Set OnOff App DataRate", appDataRate);
   cmd.AddValue ("modeBytes", "Set Queue disc mode to Packets <false> or bytes <true>", modeBytes);
-
   cmd.AddValue ("redMinTh", "RED queue minimum threshold", minTh);
   cmd.AddValue ("redMaxTh", "RED queue maximum threshold", maxTh);
+  cmd.AddValue ("shape", "Shape Parameter for Weibull distribution",shape);
   cmd.Parse (argc,argv);
 
   if ((queueDiscType != "RED") && (queueDiscType != "HRED"))
@@ -152,8 +161,8 @@ int main (int argc, char *argv[])
 
   // Install on/off app on all right side nodes
   OnOffHelper clientHelper ("ns3::TcpSocketFactory", Address ());
-  clientHelper.SetAttribute ("OnTime", StringValue (GetRandomVariableString(1,4)));
-  clientHelper.SetAttribute ("OffTime", StringValue (GetRandomVariableString(1,4)));
+  clientHelper.SetAttribute ("OnTime", StringValue (GetRandomVariableString(scale,shape)));
+  clientHelper.SetAttribute ("OffTime", StringValue (GetRandomVariableString(scale,shape)));
   Address sinkLocalAddress (InetSocketAddress (Ipv4Address::GetAny (), port));
   PacketSinkHelper packetSinkHelper ("ns3::TcpSocketFactory", sinkLocalAddress);
   ApplicationContainer sinkApps;
@@ -186,14 +195,13 @@ int main (int argc, char *argv[])
   std::cout << "\t " << st.unforcedDrop << " drops due to prob mark" << std::endl;
   std::cout << "\t " << st.forcedDrop << " drops due to hard mark" << std::endl;
   std::cout << "\t " << st.qLimDrop << " drops due to queue full" << std::endl;
-  std::ofstream output_file1("./results/Avg-Q-Len-v-Time-"+queueDiscType+".csv");
+  std::ofstream output_file1("./results/Avg-Q-Len-v-Time-D_"+queueDiscType+"_Min_"+DoubleToString(minTh)+"_K_"+DoubleToString(shape)+".csv");
   std::ostream_iterator<qTimeHRed> output_iterator1(output_file1, "\n");
   std::copy(st.avgQLen.begin(), st.avgQLen.end(), output_iterator1);
-  std::ofstream output_file2("./results/Cur-Q-Len-v-Time-"+queueDiscType+".csv");
+  std::ofstream output_file2("./results/Cur-Q-Len-v-Time-D_"+queueDiscType+"_Min_"+DoubleToString(minTh)+"_K_"+DoubleToString(shape)+".csv");
   std::ostream_iterator<qTimeHRed> output_iterator2(output_file2, "\n");
   std::copy(st.curQLen.begin(), st.curQLen.end(), output_iterator2);
   std::cout << "Destroying the simulation" << std::endl;
-
   Simulator::Destroy ();
   return 0;
 }
