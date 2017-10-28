@@ -9,6 +9,7 @@
 // Module headers:
 #include "codel-queue-disc.h"
 #include "fq-codel-queue-disc.h"
+#include "fuzzy-red-queue-disc.h"
 #include "hred-queue-disc.h"
 #include "packet-filter.h"
 #include "pfifo-fast-queue-disc.h"
